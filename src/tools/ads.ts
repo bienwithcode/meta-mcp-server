@@ -2,8 +2,8 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { MetaApiClient } from "../services/api.js";
 import { errorResult, truncate, truncateField, formatNumber, formatDate, formatBudget, buildPaginationNote, ResponseFormatSchema } from "../services/utils.js";
-import { AD_ACCOUNT_FIELDS, CAMPAIGN_FIELDS, ADSET_FIELDS, AD_FIELDS, CREATIVE_FIELDS } from "../constants.js";
-import { AdAccount, Campaign, AdSet, Ad, AdCreative, MetaPaginatedResponse } from "../types.js";
+import { AD_ACCOUNT_FIELDS, CAMPAIGN_FIELDS, ADSET_FIELDS, AD_FIELDS, CREATIVE_FIELDS, PIXEL_FIELDS } from "../constants.js";
+import { AdAccount, Campaign, AdSet, Ad, AdCreative, AdsPixel, MetaPaginatedResponse } from "../types.js";
 
 export function registerAdsTools(server: McpServer, client: MetaApiClient): void {
   // ─── List Ad Accounts ─────────────────────────────────────────────────────
@@ -1495,10 +1495,8 @@ Args:
     },
     async ({ ad_account_id, response_format }) => {
       try {
-        const data = await client.get<MetaPaginatedResponse<{
-          id: string; name: string; last_fired_time?: string; is_unavailable?: boolean; creation_time?: string;
-        }>>(`/${ad_account_id}/adspixels`, {
-          fields: "id,name,last_fired_time,is_unavailable,creation_time",
+        const data = await client.get<MetaPaginatedResponse<AdsPixel>>(`/${ad_account_id}/adspixels`, {
+          fields: PIXEL_FIELDS,
         });
 
         if (!data.data?.length) {
@@ -1515,6 +1513,9 @@ Args:
           if (px.last_fired_time) lines.push(`- **Last fired**: ${formatDate(px.last_fired_time)}`);
           if (px.creation_time) lines.push(`- **Created**: ${formatDate(px.creation_time)}`);
           lines.push(`- **Status**: ${px.is_unavailable ? "Unavailable" : "Active"}`);
+          if (px.match_rate_approx !== undefined) lines.push(`- **Match Rate**: ~${Math.round(px.match_rate_approx * 100)}%`);
+          if (px.matched_entries !== undefined) lines.push(`- **Matched Entries**: ${formatNumber(px.matched_entries)}`);
+          if (px.owner_business) lines.push(`- **Owner**: ${px.owner_business.name} (\`${px.owner_business.id}\`)`);
           lines.push("");
         }
         return { content: [{ type: "text", text: lines.join("\n") }] };
@@ -1578,12 +1579,8 @@ Args:
     },
     async ({ pixel_id, response_format }) => {
       try {
-        const data = await client.get<{
-          id: string; name: string; code?: string; creation_time?: string;
-          is_created_by_business?: boolean; first_party_cookie_status?: string;
-          automatic_matching_fields?: string[]; data_use_setting?: string; last_fired_time?: string;
-        }>(`/${pixel_id}`, {
-          fields: "id,name,code,creation_time,is_created_by_business,first_party_cookie_status,automatic_matching_fields,data_use_setting,last_fired_time",
+        const data = await client.get<AdsPixel>(`/${pixel_id}`, {
+          fields: PIXEL_FIELDS,
         });
 
         if (response_format === "json") {
@@ -1597,6 +1594,14 @@ Args:
         if (data.first_party_cookie_status) lines.push(`- **First-party cookie**: ${data.first_party_cookie_status}`);
         if (data.data_use_setting) lines.push(`- **Data use setting**: ${data.data_use_setting}`);
         if (data.automatic_matching_fields?.length) lines.push(`- **Auto-matching fields**: ${data.automatic_matching_fields.join(", ")}`);
+        
+        lines.push("", "### Dataset Health");
+        if (data.match_rate_approx !== undefined) lines.push(`- **Match Rate**: ~${Math.round(data.match_rate_approx * 100)}%`);
+        if (data.matched_entries !== undefined) lines.push(`- **Matched Entries**: ${formatNumber(data.matched_entries)}`);
+        if (data.valid_entries !== undefined) lines.push(`- **Valid Entries**: ${formatNumber(data.valid_entries)}`);
+        if (data.duplicate_entries !== undefined) lines.push(`- **Duplicate Entries**: ${formatNumber(data.duplicate_entries)}`);
+        if (data.owner_business) lines.push(`- **Owner Business**: ${data.owner_business.name} (\`${data.owner_business.id}\`)`);
+
         if (data.code) lines.push("", "### Pixel Code", "```html", truncateField(data.code, 2000), "```");
         return { content: [{ type: "text", text: lines.join("\n") }] };
       } catch (error) {
@@ -1637,7 +1642,13 @@ Args:
         if (end_time) params.end_time = end_time;
         if (event) params.event = event;
 
-        const data = await client.get<{ data: { timestamp?: string; count?: number; event?: string }[] }>(
+        const data = await client.get<{ 
+          data: { 
+            start_time: string; 
+            aggregation: string; 
+            data: { value: string; count: number }[] 
+          }[] 
+        }>(
           `/${pixel_id}/stats`, params
         );
 
@@ -1649,9 +1660,20 @@ Args:
           return { content: [{ type: "text", text: "No stats found for this pixel." }] };
         }
 
-        const lines = [`# Pixel Stats (\`${pixel_id}\`)`, "", `| Timestamp | Event | Count |`, `|-----------|-------|-------|`];
-        for (const row of data.data) {
-          lines.push(`| ${row.timestamp ? formatDate(row.timestamp) : "—"} | ${row.event ?? "—"} | ${row.count ?? 0} |`);
+        const lines = [
+          `# Pixel Stats (\`${pixel_id}\`)`, 
+          "", 
+          `| Timestamp | ${aggregation === "event" ? "Event" : "Device"} | Count |`, 
+          `|-----------|-------|-------|`
+        ];
+
+        for (const bucket of data.data) {
+          const timestamp = bucket.start_time ? formatDate(bucket.start_time) : "—";
+          if (bucket.data && Array.isArray(bucket.data)) {
+            for (const row of bucket.data) {
+              lines.push(`| ${timestamp} | ${row.value ?? "—"} | ${row.count ?? 0} |`);
+            }
+          }
         }
         return { content: [{ type: "text", text: lines.join("\n") }] };
       } catch (error) {
@@ -1790,21 +1812,26 @@ Args:
     },
     async ({ pixel_id, response_format }) => {
       try {
-        const data = await client.get<{ data: { event_name?: string; count?: number; error_count?: number; error_message?: string }[] }>(
-          `/${pixel_id}/test_events`, {}
-        );
+        const data = await client.get<AdsPixel>(`/${pixel_id}`, {
+          fields: "id,name,event_stats",
+        });
+
+        const stats = typeof data.event_stats === "string" 
+          ? (data.event_stats === "{}" ? [] : JSON.parse(data.event_stats))
+          : data.event_stats ?? [];
 
         if (response_format === "json") {
-          return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+          return { content: [{ type: "text", text: JSON.stringify(stats, null, 2) }] };
         }
 
-        if (!data.data?.length) {
+        if (!Array.isArray(stats) || stats.length === 0) {
           return { content: [{ type: "text", text: "No recent events found for this pixel." }] };
         }
 
-        const lines = [`# Recent Pixel Events (\`${pixel_id}\`)`, "", `| Event | Count | Errors | Error Message |`, `|-------|-------|--------|---------------|`];
-        for (const evt of data.data) {
-          lines.push(`| ${evt.event_name ?? "—"} | ${evt.count ?? 0} | ${evt.error_count ?? 0} | ${truncateField(evt.error_message, 100) ?? "—"} |`);
+        const lines = [`# Recent Pixel Events (\`${pixel_id}\`)`, "", `| Event | Raw Count | Match Rate | Last Fired |`, `|-------|-----------|------------|------------|`];
+        for (const evt of stats) {
+          const matchRate = evt.match_rate !== undefined ? `${Math.round(evt.match_rate * 100)}%` : "—";
+          lines.push(`| ${evt.event ?? "—"} | ${formatNumber(evt.raw_count)} | ${matchRate} | ${formatDate(evt.last_fired_time)} |`);
         }
         return { content: [{ type: "text", text: lines.join("\n") }] };
       } catch (error) {

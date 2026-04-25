@@ -1,5 +1,26 @@
 # Worklog
 
+## 2026-04-25 — Enhanced Meta Pixel Insights & EMQ (Dataset Quality API)
+
+**What changed**: 
+- Fixed `meta_get_pixel_events` tool which was incorrectly calling non-existent `/{pixel_id}/test_events`. It now uses the `event_stats` field from the Pixel node.
+- Enhanced `meta_get_pixel` and `meta_list_pixels` to include enriched health data: `matched_entries`, `match_rate_approx`, `event_stats`, and `owner_business`.
+- Added new `meta_get_dataset_quality` tool to fetch Event Match Quality (EMQ) scores and diagnostics from the Dataset Quality API.
+- Added new `meta_get_pixel_adsets` tool to correlate Pixels with the Ad Sets using them for optimization (performs account-wide scan and filter).
+- Added new `meta_get_pixel_da_checks` tool for Dynamic Ads setup diagnostics.
+- Updated `constants.ts` with `PIXEL_FIELDS` and `types.ts` with `AdsPixel` and `DatasetQuality` interfaces.
+- Registered new tools in `index.ts` and added them to `ALLOWED_TOOLS`.
+
+**Decisions made**:
+- Replaced the broken `test_events` implementation rather than deleting it, as `event_stats` provides similar debugging value without needing a special endpoint.
+- Implemented `meta_get_pixel_adsets` as a client-side filter because the Graph API lacks a direct `pixel -> adsets` edge.
+- Grouped new pixel-specific tools into a new `src/tools/pixel_insights.ts` module to keep `ads.ts` manageable.
+
+**Open questions**:
+- The `dataset_quality` endpoint may require higher-level permissions (`business_management`) for some accounts; need to monitor if any users report 403 errors.
+
+---
+
 ## 2026-04-06 — 1Password CLI fallback for credential resolution
 
 **What changed**: Added automatic 1Password CLI fallback to credential resolution at startup. When environment variables are not set, the server attempts to resolve them via `op read` from the Development vault before failing. Uses `execFileSync` (Node) or `exec.Command` (Go) for shell-safe execution with a 10s timeout. Silent no-op if 1Password CLI is unavailable. Updated README to document the integration with `op://` reference paths. Part of a broader session that also touched ynab-mcp-server, imagerelay-mcp-server, meta-mcp-server, sprout-mcp-server, and ames-unifi-mcp.

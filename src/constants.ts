@@ -1,4 +1,4 @@
-export const GRAPH_API_VERSION = "v21.0";
+export const GRAPH_API_VERSION = "v22.0";
 export const GRAPH_API_BASE = `https://graph.facebook.com/${GRAPH_API_VERSION}`;
 export const CHARACTER_LIMIT = 25000;
 
@@ -18,7 +18,7 @@ export const CAMPAIGN_FIELDS =
   "id,name,objective,status,effective_status,budget_remaining,daily_budget,lifetime_budget,start_time,stop_time,created_time,updated_time";
 
 export const ADSET_FIELDS =
-  "id,name,campaign_id,status,effective_status,daily_budget,lifetime_budget,budget_remaining,billing_event,optimization_goal,start_time,end_time,targeting,created_time";
+  "id,name,campaign_id,status,effective_status,daily_budget,lifetime_budget,budget_remaining,billing_event,optimization_goal,start_time,end_time,targeting,created_time,promoted_object";
 
 export const AD_FIELDS =
   "id,name,adset_id,campaign_id,status,effective_status,creative,created_time,updated_time,preview_shareable_link";
@@ -29,11 +29,14 @@ export const CREATIVE_FIELDS =
 export const AUDIENCE_FIELDS =
   "id,name,description,subtype,approximate_count_lower_bound,approximate_count_upper_bound,time_created,delivery_status,operation_status";
 
+export const PIXEL_FIELDS =
+  "id,name,code,creation_time,last_fired_time,is_unavailable,is_created_by_business,first_party_cookie_status,automatic_matching_fields,data_use_setting,enable_automatic_matching,description,owner_business,matched_entries,valid_entries,duplicate_entries,match_rate_approx,event_stats,usage";
+
 export const AD_ACCOUNT_FIELDS =
   "id,name,account_id,account_status,currency,timezone_name,spend_cap,amount_spent,balance,business";
 
 export const INSIGHT_FIELDS =
-  "impressions,reach,clicks,spend,cpm,cpc,cpp,ctr,frequency,unique_clicks,unique_impressions,actions,cost_per_action_type,conversions,conversion_values,cost_per_conversion,purchase_roas,inline_link_clicks,inline_link_click_ctr,cost_per_inline_link_click,inline_post_engagement,outbound_clicks,outbound_clicks_ctr,cost_per_outbound_click,social_spend,video_play_actions,video_avg_time_watched_actions,video_p25_watched_actions,video_p50_watched_actions,video_p75_watched_actions,video_p95_watched_actions,video_p100_watched_actions,video_thruplay_watched_actions,cost_per_thruplay,quality_ranking,engagement_rate_ranking,conversion_rate_ranking,date_start,date_stop";
+  "impressions,reach,clicks,spend,cpm,cpc,cpp,ctr,frequency,actions,cost_per_action_type,conversions,conversion_values,cost_per_conversion,purchase_roas,inline_link_clicks,inline_link_click_ctr,cost_per_inline_link_click,inline_post_engagement,outbound_clicks,outbound_clicks_ctr,cost_per_outbound_click,social_spend,video_play_actions,video_avg_time_watched_actions,video_p25_watched_actions,video_p50_watched_actions,video_p75_watched_actions,video_p95_watched_actions,video_p100_watched_actions,video_thruplay_watched_actions,cost_per_thruplay,quality_ranking,engagement_rate_ranking,conversion_rate_ranking,date_start,date_stop";
 
 export const THREADS_API_BASE = "https://graph.threads.net/v1.0";
 
